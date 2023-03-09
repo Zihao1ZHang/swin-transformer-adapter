@@ -311,7 +311,7 @@ if __name__ == '__main__':
     torch.cuda.set_device(config.LOCAL_RANK)
     # torch.distributed.init_process_group(backend='nccl', init_method='env://', world_size=world_size, rank=rank)
     torch.distributed.init_process_group('gloo', init_method='file://tmp/somefile', rank=0, world_size=1)
-    torch.distributed.barrier()
+
 
     seed = config.SEED + dist.get_rank()
     torch.manual_seed(seed)

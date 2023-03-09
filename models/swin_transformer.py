@@ -5,6 +5,7 @@
 # Written by Ze Liu
 # --------------------------------------------------------
 
+import math
 import torch
 import torch.nn as nn
 import torch.utils.checkpoint as checkpoint
@@ -172,6 +173,61 @@ class WindowAttention(nn.Module):
         return flops
 
 
+
+class Adapter(nn.Module):
+    def __init__(self, n_embd, down_size, bottleneck=None, dropout=0.0, init_option="bert",
+                 adapter_scalar="0.1", adapter_layernorm_option="out"):
+        super().__init__()
+        self.n_embd =n_embd
+        self.down_size = down_size
+
+        # _before
+        self.adapter_layernorm_option = adapter_layernorm_option
+        self.adapter_layernorm_before = None
+        if adapter_layernorm_option == "in" or adapter_layernorm_option == "out":
+            self.adapter_layer_norm_before = nn.LayerNorm(self.n_embd)
+
+        if adapter_scalar == "learnable_scalar":
+            self.scale = nn.Parameter(torch.ones(1))
+        else:
+            self.scale = float(adapter_scalar)
+
+        self.down_proj = nn.Linear(self.n_embd, self.down_size)
+        self.non_linear_func = nn.ReLU()
+        self.up_proj = nn.Linear(self.down_size, self.n_embd)
+
+        self.drop_out = dropout
+        # if init_option == "bert":
+        #     raise NotImplementedError
+        # elif init_option == "lora":
+        with torch.no_grad():
+            nn.init.kaiming_uniform_(self.down_proj.weight, a=math.sqrt(5))
+            nn.init.zeros_(self.up_proj.weight)
+            nn.init.zeros_(self.down_proj.bias)
+            nn.init.zeros_(self.up_proj.bias)
+
+    def forward(self, x, add_residual=True, residual=None):
+        residual = x if residual is None else residual
+        if self.adapter_layernorm_option == "in":
+            x = self.adapter_layer_norm_before(x)
+
+        down = self.down_proj(x)
+        down = self.non_linear_func(down)
+        down = nn.functional.dropout(down, p=self.drop_out, training=self.training)
+        up = self.up_proj(down)
+
+        up = up * self.scale
+
+        if self.adapter_layernorm_option == "out":
+            up = self.adapter_layer_norm_before(up)
+
+        if add_residual:
+            output = up + residual
+        else:
+            output = up
+        return output
+
+
 class SwinTransformerBlock(nn.Module):
     r""" Swin Transformer Block.
 
@@ -243,6 +299,7 @@ class SwinTransformerBlock(nn.Module):
             attn_mask = None
 
         self.register_buffer("attn_mask", attn_mask)
+        self.adapter = Adapter(dim, 8)
         self.fused_window_process = fused_window_process
 
     def forward(self, x):
@@ -289,8 +346,13 @@ class SwinTransformerBlock(nn.Module):
         x = shortcut + self.drop_path(x)
 
         # FFN
-        x = x + self.drop_path(self.mlp(self.norm2(x)))
+        # x = x + self.drop_path(self.mlp(self.norm2(x)))
 
+        # add the adapter here
+
+        # parallel
+        residual = self.drop_path(self.mlp(self.norm2(x)))
+        x = self.adapter(x, True, residual)
         return x
 
     def extra_repr(self) -> str:
