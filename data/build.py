@@ -94,7 +94,7 @@ def build_loader(config):
 
     return dataset_train, dataset_val, data_loader_train, data_loader_val, mixup_fn
 
-aaa
+
 def build_dataset(is_train, config):
     transform = build_transform(is_train, config)
     if config.DATA.DATASET == 'imagenet':
