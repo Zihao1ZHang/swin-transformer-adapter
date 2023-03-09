@@ -117,7 +117,7 @@ def build_dataset(is_train, config):
         dataset = IN22KDATASET(config.DATA.DATA_PATH, ann_file, transform)
         nb_classes = 21841
     elif config.DATA.DATASET == 'DTD':
-        dataset = DTD(config.DATA.DATASET, transform=transform)
+        dataset = DTD(config.DATA.DATA_PATH, transform=transform)
         nb_classes = 47
     else:
         raise NotImplementedError("We only support ImageNet Now.")

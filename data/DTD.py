@@ -48,10 +48,12 @@ class DTD(VisionDataset):
         self._partition = partition
 
         super().__init__(root, transform=transform, target_transform=target_transform)
-        self._base_folder = pathlib.Path(self.root) / type(self).__name__.lower()
-        self._data_folder = self._base_folder / "dtd"
-        self._meta_folder = self._data_folder / "labels"
-        self._images_folder = self._data_folder / "images"
+        self._base_folder = root
+        print("############")
+        print(self._base_folder)
+        self._data_folder = self._base_folder + "/dtd/dtd"
+        self._meta_folder = self._data_folder + "/labels"
+        self._images_folder = self._data_folder + "/images"
 
         if download:
             self._download()
@@ -61,10 +63,10 @@ class DTD(VisionDataset):
 
         self._image_files = []
         classes = []
-        with open(self._meta_folder / f"{self._split}{self._partition}.txt") as file:
+        with open(self._meta_folder + "/" + f"{self._split}{self._partition}.txt") as file:
             for line in file:
                 cls, name = line.strip().split("/")
-                self._image_files.append(self._images_folder.joinpath(cls, name))
+                self._image_files.append(self._images_folder + '/' + cls + '/' + name)
                 classes.append(cls)
 
         self.classes = sorted(set(classes))

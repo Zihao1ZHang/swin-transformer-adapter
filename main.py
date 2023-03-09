@@ -92,9 +92,9 @@ def main(config):
 
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"number of params: {n_parameters}")
-    if hasattr(model, 'flops'):
-        flops = model.flops()
-        logger.info(f"number of GFLOPs: {flops / 1e9}")
+    # if hasattr(model, 'flops'):
+    #     flops = model.flops()
+    #     logger.info(f"number of GFLOPs: {flops / 1e9}")
 
     model.cuda()
     model_without_ddp = model
@@ -309,7 +309,8 @@ if __name__ == '__main__':
         rank = -1
         world_size = -1
     torch.cuda.set_device(config.LOCAL_RANK)
-    torch.distributed.init_process_group(backend='nccl', init_method='env://', world_size=world_size, rank=rank)
+    # torch.distributed.init_process_group(backend='nccl', init_method='env://', world_size=world_size, rank=rank)
+    torch.distributed.init_process_group('gloo', init_method='file://tmp/somefile', rank=0, world_size=1)
     torch.distributed.barrier()
 
     seed = config.SEED + dist.get_rank()
