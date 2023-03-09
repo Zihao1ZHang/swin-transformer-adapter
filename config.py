@@ -155,7 +155,7 @@ _C.TRAIN.MIN_LR = 5e-6
 # Clip gradient norm
 _C.TRAIN.CLIP_GRAD = 5.0
 # Auto resume from latest checkpoint
-_C.TRAIN.AUTO_RESUME = True
+_C.TRAIN.AUTO_RESUME = False
 # Gradient accumulation steps
 # could be overwritten by command line argument
 _C.TRAIN.ACCUMULATION_STEPS = 1
@@ -293,10 +293,15 @@ def update_config(config, args):
         config.DATA.BATCH_SIZE = args.batch_size
     if _check_args('data_path'):
         config.DATA.DATA_PATH = args.data_path
+    if _check_args('dataset'):
+        config.DATA.DATASET = args.dataset
+
     if _check_args('zip'):
         config.DATA.ZIP_MODE = True
     if _check_args('cache_mode'):
         config.DATA.CACHE_MODE = args.cache_mode
+    if _check_args('num_classes'):
+        config.MODEL.NUM_CLASSES = args.num_classes
     if _check_args('pretrained'):
         config.MODEL.PRETRAINED = args.pretrained
     if _check_args('resume'):
