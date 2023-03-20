@@ -174,6 +174,7 @@ class WindowAttention(nn.Module):
 
 
 
+
 class Adapter(nn.Module):
     def __init__(self, n_embd, down_size, bottleneck=None, dropout=0.0, init_option="bert",
                  adapter_scalar="0.1", adapter_layernorm_option="out"):
@@ -183,6 +184,7 @@ class Adapter(nn.Module):
 
         # _before
         self.adapter_layernorm_option = adapter_layernorm_option
+
         self.adapter_layernorm_before = None
         if adapter_layernorm_option == "in" or adapter_layernorm_option == "out":
             self.adapter_layer_norm_before = nn.LayerNorm(self.n_embd)
@@ -251,7 +253,7 @@ class SwinTransformerBlock(nn.Module):
     def __init__(self, dim, input_resolution, num_heads, window_size=7, shift_size=0,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0., drop_path=0.,
                  act_layer=nn.GELU, norm_layer=nn.LayerNorm,
-                 fused_window_process=False):
+                 fused_window_process=False, scale="0.1", hidden=1):
         super().__init__()
         self.dim = dim
         self.input_resolution = input_resolution
@@ -299,7 +301,7 @@ class SwinTransformerBlock(nn.Module):
             attn_mask = None
 
         self.register_buffer("attn_mask", attn_mask)
-        self.adapter = Adapter(dim, 8)
+        self.adapter = Adapter(dim, down_size=hidden, adapter_scalar=scale)
         self.fused_window_process = fused_window_process
 
     def forward(self, x):
@@ -349,10 +351,14 @@ class SwinTransformerBlock(nn.Module):
         # x = x + self.drop_path(self.mlp(self.norm2(x)))
 
         # add the adapter here
+        shortcut1 = x
+        x = self.norm2(x)
+        residual = self.mlp(x)
+        x = shortcut1 + self.drop_path(self.adapter(x, True, residual))
 
         # parallel
-        residual = self.drop_path(self.mlp(self.norm2(x)))
-        x = self.adapter(x, True, residual)
+        # residual = self.drop_path(self.mlp(self.norm2(x)))
+        # x = self.adapter(x, True, residual)
         return x
 
     def extra_repr(self) -> str:
@@ -447,7 +453,7 @@ class BasicLayer(nn.Module):
     def __init__(self, dim, input_resolution, depth, num_heads, window_size,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
                  drop_path=0., norm_layer=nn.LayerNorm, downsample=None, use_checkpoint=False,
-                 fused_window_process=False):
+                 fused_window_process=False, scale="0.1", hidden=1):
 
         super().__init__()
         self.dim = dim
@@ -465,7 +471,9 @@ class BasicLayer(nn.Module):
                                  drop=drop, attn_drop=attn_drop,
                                  drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
                                  norm_layer=norm_layer,
-                                 fused_window_process=fused_window_process)
+                                 fused_window_process=fused_window_process,
+                                 scale=scale,
+                                 hidden=hidden)
             for i in range(depth)])
 
         # patch merging layer
@@ -576,7 +584,7 @@ class SwinTransformer(nn.Module):
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
-                 use_checkpoint=False, fused_window_process=False, **kwargs):
+                 use_checkpoint=False, fused_window_process=False, scale="0.1", hidden=1,  **kwargs):
         super().__init__()
 
         self.num_classes = num_classes
@@ -621,7 +629,9 @@ class SwinTransformer(nn.Module):
                                norm_layer=norm_layer,
                                downsample=PatchMerging if (i_layer < self.num_layers - 1) else None,
                                use_checkpoint=use_checkpoint,
-                               fused_window_process=fused_window_process)
+                               fused_window_process=fused_window_process,
+                               scale=scale,
+                               hidden=hidden)
             self.layers.append(layer)
 
         self.norm = norm_layer(self.num_features)

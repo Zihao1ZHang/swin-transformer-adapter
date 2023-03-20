@@ -40,6 +40,7 @@ def parse_option():
         nargs='+',
     )
 
+
     # easy config modification
     parser.add_argument('--batch-size', type=int, help="batch size for single GPU")
     parser.add_argument('--data-path', type=str, help='path to dataset')
@@ -75,7 +76,8 @@ def parse_option():
     ## overwrite optimizer in config (*.yaml) if specified, e.g., fused_adam/fused_lamb
     parser.add_argument('--optim', type=str,
                         help='overwrite optimizer if provided, can be adamw/sgd/fused_adam/fused_lamb.')
-
+    parser.add_argument('--scale', type=str, help="scale parameter of adapter")
+    parser.add_argument('--hidden-size', type=int, help="size of hidden layer of adapter")
     args, unparsed = parser.parse_known_args()
 
     config = get_config(args)
@@ -90,6 +92,12 @@ def main(config):
     model = build_model(config)
     logger.info(str(model))
 
+    # print("######################################################")
+        for name, param in model.state_dict().items():
+        if "adapter" not in name:
+            print(name)
+            param.requires_grad = False
+
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"number of params: {n_parameters}")
     # if hasattr(model, 'flops'):
@@ -100,8 +108,9 @@ def main(config):
     model_without_ddp = model
 
     optimizer = build_optimizer(config, model)
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[config.LOCAL_RANK], broadcast_buffers=False)
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[config.LOCAL_RANK], broadcast_buffers=False, find_unused_parameters=True)
     loss_scaler = NativeScalerWithGradNormCount()
+
 
     if config.TRAIN.ACCUMULATION_STEPS > 1:
         lr_scheduler = build_scheduler(config, optimizer, len(data_loader_train) // config.TRAIN.ACCUMULATION_STEPS)
@@ -145,6 +154,10 @@ def main(config):
     if config.THROUGHPUT_MODE:
         throughput(data_loader_val, model, logger)
         return
+
+    # # freeze all param except adapter
+    # for param in model.parameters():
+    #     param.
 
     logger.info("Start training")
     start_time = time.time()

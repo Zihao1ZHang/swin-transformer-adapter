@@ -65,6 +65,10 @@ _C.MODEL.DROP_PATH_RATE = 0.1
 # Label Smoothing
 _C.MODEL.LABEL_SMOOTHING = 0.1
 
+# adapter parameters
+_C.SCALE = "0.1"
+_C.HIDDEN_SIZE = 16
+
 # Swin Transformer parameters
 _C.MODEL.SWIN = CN()
 _C.MODEL.SWIN.PATCH_SIZE = 4
@@ -146,7 +150,7 @@ _C.MODEL.SIMMIM.NORM_TARGET.PATCH_SIZE = 47
 # -----------------------------------------------------------------------------
 _C.TRAIN = CN()
 _C.TRAIN.START_EPOCH = 0
-_C.TRAIN.EPOCHS = 300
+_C.TRAIN.EPOCHS = 100
 _C.TRAIN.WARMUP_EPOCHS = 20
 _C.TRAIN.WEIGHT_DECAY = 0.05
 _C.TRAIN.BASE_LR = 5e-4
@@ -341,8 +345,14 @@ def update_config(config, args):
     # set local rank for distributed training
     config.LOCAL_RANK = args.local_rank
 
+    # for adapter
+    if _check_args('scale'):
+        config.SCALE = args.scale
+    if _check_args('hidden_size'):
+        config.HIDDEN_SIZE = args.hidden_size
+
     # output folder
-    config.OUTPUT = os.path.join(config.OUTPUT, config.MODEL.NAME, config.TAG)
+    config.OUTPUT = os.path.join(config.OUTPUT, config.MODEL.NAME + "_" + config.SCALE + "_" + str(config.HIDDEN_SIZE), config.TAG)
 
     config.freeze()
 
