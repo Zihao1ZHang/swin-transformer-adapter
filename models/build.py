@@ -30,7 +30,6 @@ def build_model(config, is_pretrain=False):
     if is_pretrain:
         model = build_simmim(config)
         return model
-
     if model_type == 'swin':
         model = SwinTransformer(img_size=config.DATA.IMG_SIZE,
                                 patch_size=config.MODEL.SWIN.PATCH_SIZE,
@@ -49,7 +48,10 @@ def build_model(config, is_pretrain=False):
                                 norm_layer=layernorm,
                                 patch_norm=config.MODEL.SWIN.PATCH_NORM,
                                 use_checkpoint=config.TRAIN.USE_CHECKPOINT,
-                                fused_window_process=config.FUSED_WINDOW_PROCESS)
+                                fused_window_process=config.FUSED_WINDOW_PROCESS,
+                                scale=config.SCALE,
+                                hidden=config.HIDDEN_SIZE,
+                                use_adapter=config.ADAPTER)
     elif model_type == 'swinv2':
         model = SwinTransformerV2(img_size=config.DATA.IMG_SIZE,
                                   patch_size=config.MODEL.SWINV2.PATCH_SIZE,

@@ -68,6 +68,7 @@ _C.MODEL.LABEL_SMOOTHING = 0.1
 # adapter parameters
 _C.SCALE = "0.1"
 _C.HIDDEN_SIZE = 16
+_C.ADAPTER = None
 
 # Swin Transformer parameters
 _C.MODEL.SWIN = CN()
@@ -350,6 +351,8 @@ def update_config(config, args):
         config.SCALE = args.scale
     if _check_args('hidden_size'):
         config.HIDDEN_SIZE = args.hidden_size
+    if _check_args("adapter"):
+        config.ADAPTER = args.adapter
 
     # output folder
     config.OUTPUT = os.path.join(config.OUTPUT, config.MODEL.NAME + "_" + config.SCALE + "_" + str(config.HIDDEN_SIZE), config.TAG)

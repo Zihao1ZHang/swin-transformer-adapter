@@ -19,6 +19,10 @@ from .imagenet22k_dataset import IN22KDATASET
 from .samplers import SubsetRandomSampler
 
 from .DTD import DTD
+from .FGVC_AIRCRAFT import FGVCAircraft
+from .flowers102 import Flowers102
+from .omniglot import Omniglot
+from .stanford_cars import StanfordCars
 try:
     from torchvision.transforms import InterpolationMode
 
@@ -120,6 +124,18 @@ def build_dataset(is_train, config):
     elif config.DATA.DATASET == 'DTD':
         dataset = DTD(config.DATA.DATA_PATH, transform=transform)
         nb_classes = 47
+    elif config.DATA.DATASET == 'Aircraft':
+        dataset = FGVCAircraft(config.DATA.DATA_PATH, transform=transform)
+        nb_classes = 100
+    elif config.DATA.DATASET == 'flower102':
+        dataset = Flowers102(config.DATA.DATA_PATH, transform=transform)
+        nb_classes = 102
+    elif config.DATA.DATASET == 'omniglot':
+        dataset = Omniglot(config.DATA.DATA_PATH, transform=transform)
+        nb_classes = 30
+    elif config.DATA.DATASET == 'stanford_cars':
+        dataset = StanfordCars(config.DATA.DATA_PATH, transform=transform)
+        nb_classes = 196
     else:
         raise NotImplementedError("We only support ImageNet Now.")
 
@@ -128,6 +144,25 @@ def build_dataset(is_train, config):
 
 def build_transform(is_train, config):
     resize_im = config.DATA.IMG_SIZE > 32
+    # if config.DATA.DATASET == 'omniglot':
+    #     transform = create_transform(
+    #         input_size=config.DATA.IMG_SIZE,
+    #         is_training=True,
+    #         color_jitter=config.AUG.COLOR_JITTER if config.AUG.COLOR_JITTER > 0 else None,
+    #         auto_augment=config.AUG.AUTO_AUGMENT if config.AUG.AUTO_AUGMENT != 'none' else None,
+    #         re_prob=config.AUG.REPROB,
+    #         re_mode=config.AUG.REMODE,
+    #         re_count=config.AUG.RECOUNT,
+    #         interpolation=config.DATA.INTERPOLATION,
+    #     )
+    #
+    #     if not resize_im:
+    #         # replace RandomResizedCropAndInterpolation with
+    #         # RandomCrop
+    #         transform.transforms[0] = transforms.RandomCrop(config.DATA.IMG_SIZE, padding=4)
+    #
+    #     return transforms.Compose(t)
+
     if is_train:
         # this should always dispatch to transforms_imagenet_train
         transform = create_transform(
@@ -144,6 +179,7 @@ def build_transform(is_train, config):
             # replace RandomResizedCropAndInterpolation with
             # RandomCrop
             transform.transforms[0] = transforms.RandomCrop(config.DATA.IMG_SIZE, padding=4)
+
         return transform
 
     t = []
@@ -161,6 +197,17 @@ def build_transform(is_train, config):
                                   interpolation=_pil_interp(config.DATA.INTERPOLATION))
             )
 
+    # t.append(transforms.Grayscale(num_output_channels=3))
     t.append(transforms.ToTensor())
+    # if config.DATA.DATASET == 'omniglot':
+    #     stack_fn = lambda x: torch.stack([x, x, x], dim=0)
+    #     stack_transform = transforms.Lambda(stack_fn)
+    #     squeeze_fn = lambda x: x.squeeze()
+    #     squeeze_transform = transforms.Lambda(squeeze_fn)
+    #     # cat_fn = lambda x: torch.cat([x, x, x], dim=0)
+    #     # cat_transform = transforms.Lambda(cat_fn)
+    #     t.append(squeeze_transform)
+    #     t.append(stack_transform)
+    #     # t.append(cat_transform)
     t.append(transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD))
     return transforms.Compose(t)

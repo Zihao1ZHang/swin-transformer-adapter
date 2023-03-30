@@ -28,7 +28,7 @@ def build_optimizer(config, model, simmim=False, is_pretrain=False):
         skip_keywords = model.no_weight_decay_keywords()
     if simmim:
         if is_pretrain:
-            parameters = get_pretrain_param_groups(model, skip, skip_keywords)
+            parameters = get_pretrain_param_groups(config, model, skip, skip_keywords)
         else:
             depths = config.MODEL.SWIN.DEPTHS if config.MODEL.TYPE == 'swin' else config.MODEL.SWINV2.DEPTHS
             num_layers = sum(depths)
@@ -59,7 +59,6 @@ def build_optimizer(config, model, simmim=False, is_pretrain=False):
 def set_weight_decay(model, skip_list=(), skip_keywords=()):
     has_decay = []
     no_decay = []
-
     for name, param in model.named_parameters():
         if not param.requires_grad:
             continue  # frozen weights
@@ -81,7 +80,7 @@ def check_keywords_in_name(name, keywords=()):
     return isin
 
 
-def get_pretrain_param_groups(model, skip_list=(), skip_keywords=()):
+def get_pretrain_param_groups(config, model, skip_list=(), skip_keywords=()):
     has_decay = []
     no_decay = []
     has_decay_name = []
@@ -90,13 +89,19 @@ def get_pretrain_param_groups(model, skip_list=(), skip_keywords=()):
     for name, param in model.named_parameters():
         if not param.requires_grad:
             continue
-        if len(param.shape) == 1 or name.endswith(".bias") or (name in skip_list) or \
-                check_keywords_in_name(name, skip_keywords):
-            no_decay.append(param)
-            no_decay_name.append(name)
+        if config.ADAPTER is None:
+            if len(param.shape) == 1 or name.endswith(".bias") or (name in skip_list) or \
+                    check_keywords_in_name(name, skip_keywords):
+                no_decay.append(param)
+                no_decay_name.append(name)
+            else:
+                has_decay.append(param)
+                has_decay_name.append(name)
         else:
-            has_decay.append(param)
-            has_decay_name.append(name)
+            if name.endswith(".bias") or "adapter" in name:
+                has_decay.append(param)
+                has_decay.append(param)
+                has_decay_name.append(name)
     return [{'params': has_decay},
             {'params': no_decay, 'weight_decay': 0.}]
 

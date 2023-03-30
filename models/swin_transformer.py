@@ -253,7 +253,7 @@ class SwinTransformerBlock(nn.Module):
     def __init__(self, dim, input_resolution, num_heads, window_size=7, shift_size=0,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0., drop_path=0.,
                  act_layer=nn.GELU, norm_layer=nn.LayerNorm,
-                 fused_window_process=False, scale="0.1", hidden=1):
+                 fused_window_process=False, scale="0.1", hidden=1, use_adapter=None):
         super().__init__()
         self.dim = dim
         self.input_resolution = input_resolution
@@ -261,6 +261,7 @@ class SwinTransformerBlock(nn.Module):
         self.window_size = window_size
         self.shift_size = shift_size
         self.mlp_ratio = mlp_ratio
+        self.use_adapter = use_adapter
         if min(self.input_resolution) <= self.window_size:
             # if window size is larger than input resolution, we don't partition windows
             self.shift_size = 0
@@ -350,15 +351,21 @@ class SwinTransformerBlock(nn.Module):
         # FFN
         # x = x + self.drop_path(self.mlp(self.norm2(x)))
 
-        # add the adapter here
-        shortcut1 = x
-        x = self.norm2(x)
-        residual = self.mlp(x)
-        x = shortcut1 + self.drop_path(self.adapter(x, True, residual))
-
-        # parallel
-        # residual = self.drop_path(self.mlp(self.norm2(x)))
-        # x = self.adapter(x, True, residual)
+        # Adaoter version
+        if self.use_adapter == "parallel":
+            # parallel
+            shortcut1 = x
+            x = self.norm2(x)
+            residual = self.mlp(x)
+            x = shortcut1 + self.drop_path(self.adapter(x, True, residual))
+        elif self.use_adapter == "seq":
+            # sequential
+            shortcut1 = x
+            x = shortcut1 + self.drop_path(self.adapter(self.mlp(self.norm2(x))))
+            # residual = self.drop_path(self.adapter(self.mlp(self.norm2(x))))
+            # x = self.adapter(x, True, residual)
+        else:
+            x = x + self.drop_path(self.adapter(self.norm2(x)))
         return x
 
     def extra_repr(self) -> str:
@@ -453,7 +460,7 @@ class BasicLayer(nn.Module):
     def __init__(self, dim, input_resolution, depth, num_heads, window_size,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
                  drop_path=0., norm_layer=nn.LayerNorm, downsample=None, use_checkpoint=False,
-                 fused_window_process=False, scale="0.1", hidden=1):
+                 fused_window_process=False, scale="0.1", hidden=1, use_adapter=None):
 
         super().__init__()
         self.dim = dim
@@ -473,7 +480,8 @@ class BasicLayer(nn.Module):
                                  norm_layer=norm_layer,
                                  fused_window_process=fused_window_process,
                                  scale=scale,
-                                 hidden=hidden)
+                                 hidden=hidden,
+                                 use_adapter=use_adapter)
             for i in range(depth)])
 
         # patch merging layer
@@ -584,7 +592,7 @@ class SwinTransformer(nn.Module):
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
-                 use_checkpoint=False, fused_window_process=False, scale="0.1", hidden=1,  **kwargs):
+                 use_checkpoint=False, fused_window_process=False, scale="0.1", hidden=1, use_adapter=None,  **kwargs):
         super().__init__()
 
         self.num_classes = num_classes
@@ -594,6 +602,7 @@ class SwinTransformer(nn.Module):
         self.patch_norm = patch_norm
         self.num_features = int(embed_dim * 2 ** (self.num_layers - 1))
         self.mlp_ratio = mlp_ratio
+        self.use_adapter = use_adapter
 
         # split image into non-overlapping patches
         self.patch_embed = PatchEmbed(
@@ -631,7 +640,8 @@ class SwinTransformer(nn.Module):
                                use_checkpoint=use_checkpoint,
                                fused_window_process=fused_window_process,
                                scale=scale,
-                               hidden=hidden)
+                               hidden=hidden,
+                               use_adapter=use_adapter)
             self.layers.append(layer)
 
         self.norm = norm_layer(self.num_features)

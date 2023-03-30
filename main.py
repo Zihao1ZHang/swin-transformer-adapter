@@ -11,6 +11,7 @@ import json
 import random
 import argparse
 import datetime
+import pickle
 import numpy as np
 
 import torch
@@ -76,8 +77,12 @@ def parse_option():
     ## overwrite optimizer in config (*.yaml) if specified, e.g., fused_adam/fused_lamb
     parser.add_argument('--optim', type=str,
                         help='overwrite optimizer if provided, can be adamw/sgd/fused_adam/fused_lamb.')
+
+    # adapter parameter
     parser.add_argument('--scale', type=str, help="scale parameter of adapter")
     parser.add_argument('--hidden-size', type=int, help="size of hidden layer of adapter")
+    parser.add_argument('--adapter', type=str, help="define the position of the adapter")
+
     args, unparsed = parser.parse_known_args()
 
     config = get_config(args)
@@ -92,11 +97,14 @@ def main(config):
     model = build_model(config)
     logger.info(str(model))
 
-    # print("######################################################")
-        for name, param in model.state_dict().items():
-        if "adapter" not in name:
-            print(name)
-            param.requires_grad = False
+    # freeze params not in adapter
+    if config.ADAPTER is not None:
+        for name, param in model.named_parameters():
+            if "adapter" not in name :
+                param.requires_grad = False
+            if "head" in name:
+                param.requires_grad = True
+
 
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"number of params: {n_parameters}")
@@ -161,6 +169,11 @@ def main(config):
 
     logger.info("Start training")
     start_time = time.time()
+
+    loss_list = []
+    acc1_list = []
+    acc5_list = []
+    max_acc = -1
     for epoch in range(config.TRAIN.START_EPOCH, config.TRAIN.EPOCHS):
         data_loader_train.sampler.set_epoch(epoch)
 
@@ -175,10 +188,31 @@ def main(config):
         max_accuracy = max(max_accuracy, acc1)
         logger.info(f'Max accuracy: {max_accuracy:.2f}%')
 
+        loss_list.append(loss)
+        acc1_list.append(acc1)
+        acc5_list.append(acc5)
+        max_acc = max(max_acc, acc1)
+
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     logger.info('Training time {}'.format(total_time_str))
 
+    info_dict = {
+        "acc1_list": acc1_list,
+        "acc5_list": acc5_list,
+        "loss_list": loss_list,
+        "max_acc": max_acc,
+        "training_time": total_time,
+        "param_num": n_parameters
+    }
+
+    if config.ADAPTER is None:
+        adapter = "Full_MODEL"
+    else:
+        adapter = config.ADAPTER
+    pickle_filename = os.path.join("data_for_plot", str(config.DATA.DATASET) + "_" + adapter + "_" + str(config.HIDDEN_SIZE) + ".pickle")
+    with open(pickle_filename, 'wb') as handle:
+        pickle.dump(info_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mixup_fn, lr_scheduler, loss_scaler):
     model.train()
@@ -193,6 +227,8 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
     start = time.time()
     end = time.time()
     for idx, (samples, targets) in enumerate(data_loader):
+        if config.DATA.DATASET == 'omniglot':
+            images = torch.stack([samples, samples, samples], dim=0)
         samples = samples.cuda(non_blocking=True)
         targets = targets.cuda(non_blocking=True)
 
@@ -252,6 +288,8 @@ def validate(config, data_loader, model):
 
     end = time.time()
     for idx, (images, target) in enumerate(data_loader):
+        if config.DATA.DATASET == 'omniglot':
+            images = torch.stack([images, images, images], dim=0)
         images = images.cuda(non_blocking=True)
         target = target.cuda(non_blocking=True)
 
@@ -321,6 +359,7 @@ if __name__ == '__main__':
     else:
         rank = -1
         world_size = -1
+    print(config.LOCAL_RANK)
     torch.cuda.set_device(config.LOCAL_RANK)
     # torch.distributed.init_process_group(backend='nccl', init_method='env://', world_size=world_size, rank=rank)
     torch.distributed.init_process_group('gloo', init_method='file://tmp/somefile', rank=0, world_size=1)
