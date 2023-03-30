@@ -228,7 +228,7 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
     end = time.time()
     for idx, (samples, targets) in enumerate(data_loader):
         if config.DATA.DATASET == 'omniglot':
-            images = torch.stack([samples, samples, samples], dim=0)
+            samples = torch.stack([samples, samples, samples], dim=1)
         samples = samples.cuda(non_blocking=True)
         targets = targets.cuda(non_blocking=True)
 
@@ -288,8 +288,8 @@ def validate(config, data_loader, model):
 
     end = time.time()
     for idx, (images, target) in enumerate(data_loader):
-        if config.DATA.DATASET == 'omniglot':
-            images = torch.stack([images, images, images], dim=0)
+        # if config.DATA.DATASET == 'omniglot':
+        #     images = torch.stack([images, images, images], dim=0)
         images = images.cuda(non_blocking=True)
         target = target.cuda(non_blocking=True)
 

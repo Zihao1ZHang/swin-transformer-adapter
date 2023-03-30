@@ -132,7 +132,7 @@ def build_dataset(is_train, config):
         nb_classes = 102
     elif config.DATA.DATASET == 'omniglot':
         dataset = Omniglot(config.DATA.DATA_PATH, transform=transform)
-        nb_classes = 30
+        nb_classes = 1623
     elif config.DATA.DATASET == 'stanford_cars':
         dataset = StanfordCars(config.DATA.DATA_PATH, transform=transform)
         nb_classes = 196
@@ -199,15 +199,15 @@ def build_transform(is_train, config):
 
     # t.append(transforms.Grayscale(num_output_channels=3))
     t.append(transforms.ToTensor())
-    # if config.DATA.DATASET == 'omniglot':
-    #     stack_fn = lambda x: torch.stack([x, x, x], dim=0)
-    #     stack_transform = transforms.Lambda(stack_fn)
-    #     squeeze_fn = lambda x: x.squeeze()
-    #     squeeze_transform = transforms.Lambda(squeeze_fn)
-    #     # cat_fn = lambda x: torch.cat([x, x, x], dim=0)
-    #     # cat_transform = transforms.Lambda(cat_fn)
-    #     t.append(squeeze_transform)
-    #     t.append(stack_transform)
-    #     # t.append(cat_transform)
+    if config.DATA.DATASET == 'omniglot':
+        stack_fn = lambda x: torch.stack([x, x, x], dim=0)
+        stack_transform = transforms.Lambda(stack_fn)
+        squeeze_fn = lambda x: x.squeeze()
+        squeeze_transform = transforms.Lambda(squeeze_fn)
+        # cat_fn = lambda x: torch.cat([x, x, x], dim=0)
+        # cat_transform = transforms.Lambda(cat_fn)
+        t.append(squeeze_transform)
+        t.append(stack_transform)
+        # t.append(cat_transform)
     t.append(transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD))
     return transforms.Compose(t)
