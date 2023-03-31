@@ -168,6 +168,9 @@ def main(config):
     #     param.
 
     logger.info("Start training")
+    print("input size")
+    print(config.DATA.IMG_SIZE)
+    print("color_jitter")
     start_time = time.time()
 
     loss_list = []

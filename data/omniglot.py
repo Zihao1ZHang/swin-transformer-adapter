@@ -73,7 +73,6 @@ class Omniglot(VisionDataset):
 
         if self.target_transform:
             character_class = self.target_transform(character_class)
-
         return image, character_class
 
     def _get_target_folder(self) -> str:

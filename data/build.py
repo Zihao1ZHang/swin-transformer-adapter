@@ -13,6 +13,10 @@ from torchvision import datasets, transforms
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from timm.data import Mixup
 from timm.data import create_transform
+from timm.data.transforms import RandomResizedCropAndInterpolation, str_to_pil_interp
+from timm.data.constants import IMAGENET_DEFAULT_MEAN
+from timm.data.auto_augment import rand_augment_transform
+from timm.data.random_erasing import RandomErasing
 
 from .cached_image_folder import CachedImageFolder
 from .imagenet22k_dataset import IN22KDATASET
@@ -144,42 +148,114 @@ def build_dataset(is_train, config):
 
 def build_transform(is_train, config):
     resize_im = config.DATA.IMG_SIZE > 32
-    # if config.DATA.DATASET == 'omniglot':
-    #     transform = create_transform(
-    #         input_size=config.DATA.IMG_SIZE,
-    #         is_training=True,
-    #         color_jitter=config.AUG.COLOR_JITTER if config.AUG.COLOR_JITTER > 0 else None,
-    #         auto_augment=config.AUG.AUTO_AUGMENT if config.AUG.AUTO_AUGMENT != 'none' else None,
-    #         re_prob=config.AUG.REPROB,
-    #         re_mode=config.AUG.REMODE,
-    #         re_count=config.AUG.RECOUNT,
-    #         interpolation=config.DATA.INTERPOLATION,
-    #     )
-    #
-    #     if not resize_im:
-    #         # replace RandomResizedCropAndInterpolation with
-    #         # RandomCrop
-    #         transform.transforms[0] = transforms.RandomCrop(config.DATA.IMG_SIZE, padding=4)
-    #
-    #     return transforms.Compose(t)
+    if config.DATA.DATASET == 'omniglot' and is_train:
+
+        t = []
+        if resize_im:
+            if config.TEST.CROP:
+                size = int((256 / 224) * config.DATA.IMG_SIZE)
+                t.append(
+                    transforms.Resize(size, interpolation=_pil_interp(config.DATA.INTERPOLATION)),
+                    # to maintain same ratio w.r.t. 224 images
+                )
+                t.append(transforms.CenterCrop(config.DATA.IMG_SIZE))
+            else:
+                t.append(
+                    transforms.Resize((config.DATA.IMG_SIZE, config.DATA.IMG_SIZE),
+                                      interpolation=_pil_interp(config.DATA.INTERPOLATION))
+                )
+
+        # t.append(transforms.Grayscale(num_output_channels=3))
+        t.append(transforms.ToTensor())
+        if config.DATA.DATASET == 'omniglot':
+            stack_fn = lambda x: torch.stack([x, x, x], dim=0)
+            stack_transform = transforms.Lambda(stack_fn)
+            squeeze_fn = lambda x: x.squeeze()
+            squeeze_transform = transforms.Lambda(squeeze_fn)
+            # cat_fn = lambda x: torch.cat([x, x, x], dim=0)
+            # cat_transform = transforms.Lambda(cat_fn)
+            t.append(squeeze_transform)
+            t.append(stack_transform)
+
+
+            # t.append(cat_transform)
+        t.append(transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD))
+        return transforms.Compose(t)
+        # scale = tuple((0.08, 1.0))  # default imagenet scale range
+        # ratio = tuple((3. / 4., 4. / 3.))  # default imagenet ratio range
+        # primary_tfl = [
+        #     RandomResizedCropAndInterpolation(config.DATA.IMG_SIZE, scale=scale, ratio=ratio, interpolation=config.DATA.INTERPOLATION)]
+        # primary_tfl += [transforms.RandomHorizontalFlip(p=0.5)]
+        #
+        # secondary_tfl = []
+        # disable_color_jitter = False
+        # if config.AUG.AUTO_AUGMENT:
+        #     assert isinstance(config.AUG.AUTO_AUGMENT, str)
+        #     # color jitter is typically disabled if AA/RA on,
+        #     # this allows override without breaking old hparm cfgs
+        #     disable_color_jitter = not (False or '3a' in config.AUG.AUTO_AUGMENT)
+        #     if isinstance(config.DATA.IMG_SIZE, (tuple, list)):
+        #         img_size_min = min(config.DATA.IMG_SIZE)
+        #     else:
+        #         img_size_min = config.DATA.IMG_SIZE
+        #     aa_params = dict(
+        #         translate_const=int(img_size_min * 0.45),
+        #         img_mean=tuple([min(255, round(255 * x)) for x in IMAGENET_DEFAULT_MEAN]),
+        #     )
+        #     if config.DATA.INTERPOLATION and config.DATA.INTERPOLATION != 'random':
+        #         aa_params['interpolation'] = str_to_pil_interp(config.DATA.INTERPOLATION)
+        #     if config.AUG.AUTO_AUGMENT.startswith('rand'):
+        #         secondary_tfl += [rand_augment_transform(config.AUG.AUTO_AUGMENT, aa_params)]
+        #
+        # if config.AUG.COLOR_JITTER is not None and not disable_color_jitter:
+        #     color_jitter = (float(config.AUG.COLOR_JITTER),) * 3
+        #     secondary_tfl += [transforms.ColorJitter(*color_jitter)]
+        #
+        # final_tfl = []
+        # stack_fn = lambda x: torch.stack([x, x, x], dim=0)
+        # stack_transform = transforms.Lambda(stack_fn)
+        # squeeze_fn = lambda x: x.squeeze()
+        # squeeze_transform = transforms.Lambda(squeeze_fn)
+        # final_tfl += [
+        #     transforms.ToTensor(),
+        #     squeeze_transform,
+        #     stack_transform,
+        #     transforms.Normalize(
+        #         mean=torch.tensor(IMAGENET_DEFAULT_MEAN),
+        #         std=torch.tensor(IMAGENET_DEFAULT_STD))
+        # ]
+        # if config.AUG.REPROB > 0.:
+        #     final_tfl.append(
+        #         RandomErasing(config.AUG.REPROB, mode=config.AUG.REMODE, max_count=config.AUG.RECOUNT,
+        #                       num_splits=0, device='cpu'))
+        # return transforms.Compose(primary_tfl + secondary_tfl + final_tfl)
 
     if is_train:
         # this should always dispatch to transforms_imagenet_train
         transform = create_transform(
             input_size=config.DATA.IMG_SIZE,
             is_training=True,
-            color_jitter=config.AUG.COLOR_JITTER if config.AUG.COLOR_JITTER > 0 else None,
-            auto_augment=config.AUG.AUTO_AUGMENT if config.AUG.AUTO_AUGMENT != 'none' else None,
-            re_prob=config.AUG.REPROB,
-            re_mode=config.AUG.REMODE,
-            re_count=config.AUG.RECOUNT,
-            interpolation=config.DATA.INTERPOLATION,
+            color_jitter=config.AUG.COLOR_JITTER if config.AUG.COLOR_JITTER > 0 else None, # 0.4
+            auto_augment=config.AUG.AUTO_AUGMENT if config.AUG.AUTO_AUGMENT != 'none' else None, #'rand-m9-mstd0.5-inc1'
+            re_prob=config.AUG.REPROB, # 0.25
+            re_mode=config.AUG.REMODE, # pixel
+            re_count=config.AUG.RECOUNT, # 1
+            interpolation=config.DATA.INTERPOLATION, # bicubic
         )
         if not resize_im:
             # replace RandomResizedCropAndInterpolation with
             # RandomCrop
             transform.transforms[0] = transforms.RandomCrop(config.DATA.IMG_SIZE, padding=4)
-
+        if config.DATA.DATASET == 'omniglot':
+            stack_fn = lambda x: torch.stack([x, x, x], dim=0)
+            stack_transform = transforms.Lambda(stack_fn)
+            squeeze_fn = lambda x: x.squeeze()
+            squeeze_transform = transforms.Lambda(squeeze_fn)
+            # cat_fn = lambda x: torch.cat([x, x, x], dim=0)
+            # cat_transform = transforms.Lambda(cat_fn)
+            transform2 = transforms.Compose([squeeze_transform, stack_transform])
+            return transforms.Compose(transform.transforms + transform2.transforms)
+            # return (transform + transform2)
         return transform
 
     t = []
