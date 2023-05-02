@@ -10,9 +10,12 @@ MODEL:
     NUM_HEADS: [ 3, 6, 12, 24 ]
     WINDOW_SIZE: 7
 TRAIN:
-  EPOCHS: 100
+  EPOCHS: 500
   WARMUP_EPOCHS: 5
   WEIGHT_DECAY: 0.05
-  BASE_LR: 1.25e-4 # 4096 batch-size
+#  BASE_LR: 1.25e-4 # 4096 batch-size adapter
+#  BASE_LR: 9.25e-4 # DTD
+#  BASE_LR: 5.25e-4 # Aircraft
+  BASE_LR: 3.25e-4 # Aircraft
   WARMUP_LR: 1.25e-7
   MIN_LR: 1.25e-6

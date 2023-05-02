@@ -543,7 +543,7 @@ class PatchEmbed(nn.Module):
             self.norm = None
 
     def forward(self, x):
-        print(x.shape)
+        # print(x.shape)
         B, C, H, W = x.shape
         # FIXME look at relaxing size constraints
         assert H == self.img_size[0] and W == self.img_size[1], \

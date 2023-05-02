@@ -98,7 +98,7 @@ def main(config):
     logger.info(str(model))
 
     # freeze params not in adapter
-    if config.ADAPTER is not None:
+    if config.ADAPTER == 'seq' or config.ADAPTER == 'parallel':
         for name, param in model.named_parameters():
             if "adapter" not in name :
                 param.requires_grad = False
@@ -195,6 +195,23 @@ def main(config):
         acc1_list.append(acc1)
         acc5_list.append(acc5)
         max_acc = max(max_acc, acc1)
+        if epoch % 10 == 0:
+            info_dict = {
+                "acc1_list": acc1_list,
+                "acc5_list": acc5_list,
+                "loss_list": loss_list,
+                "max_acc": max_acc,
+                "param_num": n_parameters
+            }
+
+            if config.ADAPTER is None:
+                adapter = "Full_MODEL"
+            else:
+                adapter = config.ADAPTER
+            pickle_filename = os.path.join("data_for_plot", str(config.DATA.DATASET) + "_" + adapter + "_" + str(
+                config.HIDDEN_SIZE) + ".pickle")
+            with open(pickle_filename, 'wb') as handle:
+                pickle.dump(info_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
@@ -230,14 +247,15 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
     start = time.time()
     end = time.time()
     for idx, (samples, targets) in enumerate(data_loader):
-        if config.DATA.DATASET == 'omniglot':
-            samples = torch.stack([samples, samples, samples], dim=1)
+        # if config.DATA.DATASET == 'omniglot':
+        #     samples = torch.stack([samples, samples, samples], dim=1)
         samples = samples.cuda(non_blocking=True)
         targets = targets.cuda(non_blocking=True)
 
         if mixup_fn is not None:
             samples, targets = mixup_fn(samples, targets)
-
+        # print("image size: for the train_one_epoch")
+        # print(samples.shape)
         with torch.cuda.amp.autocast(enabled=config.AMP_ENABLE):
             outputs = model(samples)
         loss = criterion(outputs, targets)

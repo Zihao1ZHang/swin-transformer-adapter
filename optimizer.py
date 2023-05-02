@@ -72,6 +72,7 @@ def set_weight_decay(model, skip_list=(), skip_keywords=()):
             {'params': no_decay, 'weight_decay': 0.}]
 
 
+
 def check_keywords_in_name(name, keywords=()):
     isin = False
     for keyword in keywords:
@@ -89,7 +90,7 @@ def get_pretrain_param_groups(config, model, skip_list=(), skip_keywords=()):
     for name, param in model.named_parameters():
         if not param.requires_grad:
             continue
-        if config.ADAPTER is None:
+        if config.ADAPTER == 'seq' or config.ADAPTER == 'parallel':
             if len(param.shape) == 1 or name.endswith(".bias") or (name in skip_list) or \
                     check_keywords_in_name(name, skip_keywords):
                 no_decay.append(param)

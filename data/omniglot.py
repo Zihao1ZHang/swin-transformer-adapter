@@ -2,9 +2,14 @@ from os.path import join
 from typing import Any, Callable, List, Optional, Tuple
 
 from PIL import Image, ImageOps
+import numpy as np
 
 from torchvision.datasets import VisionDataset
 from torchvision.datasets.utils import list_dir, list_files
+from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+
+
+import torchvision.transforms.functional as TF
 
 
 class Omniglot(VisionDataset):
@@ -67,12 +72,15 @@ class Omniglot(VisionDataset):
         image_name, character_class = self._flat_character_images[index]
         image_path = join(self.target_folder, self._characters[character_class], image_name)
         image = Image.open(image_path, mode="r").convert("L")
-        # image = ImageOps.colorize(image, black='black', white='white')
+
+
         if self.transform:
             image = self.transform(image)
 
         if self.target_transform:
             character_class = self.target_transform(character_class)
+
+        # image = TF.normalize(image, IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)
         return image, character_class
 
     def _get_target_folder(self) -> str:

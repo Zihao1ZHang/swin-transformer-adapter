@@ -355,8 +355,8 @@ def update_config(config, args):
         config.ADAPTER = args.adapter
 
     # output folder
-    config.OUTPUT = os.path.join(config.OUTPUT, config.MODEL.NAME + "_" + config.SCALE + "_" + str(config.HIDDEN_SIZE), config.TAG)
-
+    config.OUTPUT = os.path.join(config.OUTPUT, config.MODEL.NAME + "_" + config.SCALE + "_" + str(config.HIDDEN_SIZE) + "_" + str(config.DATA.DATASET), config.TAG)
+    print(config.OUTPUT)
     config.freeze()
 
 
